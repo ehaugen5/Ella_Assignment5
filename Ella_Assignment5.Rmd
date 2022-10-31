@@ -1,0 +1,153 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Q1) Preliminaries
+```{r}
+
+library(tidyverse)
+library(ggthemes)
+library(rstatix)
+library(ggpubr)
+
+assignment5 = read_csv("assignment5_data.csv")
+
+```
+Q2) Subject-level means
+```{r}
+subject_accuracy = assignment5 %>%
+  group_by(subject, prime_condition) %>%
+  summarise(mean_accuracy = mean(accuracy))
+
+subject_rt = assignment5 %>%
+  group_by(subject, prime_condition) %>%
+  summarise(mean_rt = mean(response_RT))
+
+```
+Q3) Format of the data
+Both subject_accuracy and subject_rt are in long format.
+
+Q4) Long to wide conversion
+```{r}
+subject_accuracy_wide = subject_accuracy %>%
+  pivot_wider(names_from = prime_condition, values_from = mean_accuracy)
+  
+```
+Q5) Wide to long conversion
+```{r}
+subject_accuracy_long = subject_accuracy_wide %>%
+  pivot_longer(names_to = "condition", cols = both:unrelated)
+  
+```
+Q6) Interpretation
+The subject_accuracy dataframe contains the same information as subject_accuracy_long.
+
+Q7) t-test in R
+paired
+use subject_accuracy_wide
+unequal variance
+two-tailed
+
+```{r}
+t.test(subject_accuracy_wide$phonological, subject_accuracy_wide$semantic, var.equal = TRUE, paired = TRUE)
+
+```
+Q8) t-test interpretation
+The p-value (0.00009033) is smaller than the alpha (0.05), so the results from the study are statistically significant.
+We can reject the null hypothesis. 
+
+Q9) t-test manual
+```{r}
+
+subject_accuracy_wide = subject_accuracy_wide %>%
+  mutate(diff = phonological - semantic)
+
+x_bar = mean(subject_accuracy_wide$diff)
+sd_diff = sd(subject_accuracy_wide$diff)
+t = x_bar/(sd_diff/sqrt(nrow(subject_accuracy_wide)))
+
+df = nrow(subject_accuracy_wide)-1
+
+p_value = 2*(1-pt(t,df))
+```
+
+Q10) t-test outliers
+```{r}
+subject_accuracy_wide = subject_accuracy_wide %>% ungroup()
+
+hist(subject_accuracy_wide$diff)
+
+outliers = subject_accuracy_wide %>% identify_outliers(diff)
+
+outlier_subs = outliers %>% pull(subject)
+
+newdf = subject_accuracy_wide %>% filter(!subject %in% outlier_subs)
+```
+One outlier was found (subject 97). 
+
+Q11) t-test normality
+```{r}
+ggqqplot(subject_accuracy_wide, "diff")
+
+subject_accuracy_wide %>% shapiro_test(diff)
+
+```
+The normality assumption is satisfied because p is larger than 0.05 (0.686)
+
+Q12) Overall pattern interpretation
+
+The test of assumptions does not change my conclusion about the validity of the t-test.
+The type of cue that is given to people impacts their ability to retrieve words from memory. 
+Specifically, people are more accurate when retrieving words phonologically compared to semantically.
+
+Q13) Plot rts
+```{r}
+  
+means_data = assignment5 %>% 
+  select(subject, response_RT, prime_condition)
+
+mean_rt = means_data %>% 
+  group_by(prime_condition)%>%
+  summarise(mean_rt = mean(response_RT))
+
+mean_rt %>%
+  ggplot(aes(x = prime_condition, y = mean_rt)) +
+  geom_col(position = "dodge", fill = "blue")+
+  theme_fivethirtyeight() +
+  xlab("prime condition") + 
+  ylab ("mean RT") + 
+  ggtitle("Barplot of RT")
+
+```
+It's tough to infer much about RTs based on this plot. Semantic conditions produced the fastest response times and unrelated conditions produced the slowest response times, but we can't infer whether this is significant from this plot alone. 
+
+14) t-test for RTs
+```{r}
+subject_rt_wide = subject_rt %>%
+  pivot_wider(names_from = prime_condition, values_from = mean_rt)
+
+subject_rt_wide = subject_rt_wide %>% ungroup()
+
+subject_rt_wide = subject_rt_wide %>%
+  mutate(diff = unrelated - semantic)
+
+hist(subject_rt_wide$diff)
+
+outliers = subject_rt_wide %>% identify_outliers(diff)
+
+outlier_subs = outliers %>% pull(subject)
+
+newdf = subject_rt_wide %>% filter(!subject %in% outlier_subs)
+
+ggqqplot(subject_rt_wide, "diff")
+
+subject_rt_wide %>% shapiro_test(diff)
+
+t.test(subject_rt_wide$semantic, subject_accuracy_wide$unrelated, var.equal = TRUE, paired = TRUE)
+
+```
+
+P value is significantly less than 0.05 so the results are significant and we can reject the null hypothesis. Semantic conditions produced the fastest response times and unrelated conditions produced the slowest response times.
+
+
